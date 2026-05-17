@@ -1,7 +1,7 @@
 const DURATIONS = {
-  work: 0.1 * 60 * 1000, // TEMPORARILY CHANGED TO 0.1 MINUTES FOR DEBUGGING
-  shortBreak: 5 * 60 * 1000,
-  longBreak: 15 * 60 * 1000,
+  work: 0.05 * 60 * 1000, // TEMPORARILY CHANGED MINUTES FOR DEBUGGING
+  shortBreak: 0.05 * 60 * 1000,
+  longBreak: 0.05 * 60 * 1000,
 };
 
 const AUTO_SWITCH_DELAY = 3000;
@@ -81,9 +81,41 @@ function startPhase(phase) {
 
       if (phase === "work") {
         sessionsEl.textContent = `Completed sessions: ${++completedSessions}`;
+
+        setTimeout(() => {
+          startPhase(completedSessions % 4 === 0 ? "longBreak" : "shortBreak");
+        }, AUTO_SWITCH_DELAY);
       }
     }
   }, 1000);
+}
+
+function pauseTimer() {
+  if (isPaused || !isRunning) {
+    return null;
+  }
+
+  clearInterval(timer.intervalId);
+  isPaused = true;
+}
+
+function resumeTimer() {
+  if (!isPaused) {
+    return null;
+  }
+
+  timer.intervalId = setInterval(() => {
+    if (calculateTime() <= 1000) {
+      clearInterval(timer.intervalId);
+      clearTime();
+
+      if (phase === "work") {
+        sessionsEl.textContent = `Completed sessions: ${++completedSessions}`;
+      }
+    }
+  }, 1000);
+
+  isPaused = false;
 }
 
 startBtn.addEventListener("click", () => {
