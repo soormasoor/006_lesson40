@@ -85,6 +85,10 @@ function startPhase(phase) {
         setTimeout(() => {
           startPhase(completedSessions % 4 === 0 ? "longBreak" : "shortBreak");
         }, AUTO_SWITCH_DELAY);
+      } else {
+        setTimeout(() => {
+          startPhase("work");
+        }, AUTO_SWITCH_DELAY);
       }
     }
   }, 1000);
