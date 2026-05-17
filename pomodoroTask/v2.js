@@ -105,6 +105,8 @@ function finishPhase() {
 
   clearTimer();
 
+  messageEl.textContent = "Switching phases...";
+
   if (finishedPhase === "work") {
     sessionsEl.textContent = `Completed sessions: ${++completedSessions}`;
 
