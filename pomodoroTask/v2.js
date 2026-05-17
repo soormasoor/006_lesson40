@@ -113,10 +113,12 @@ function finishPhase() {
     const nextPhase = completedSessions % 4 === 0 ? "longBreak" : "shortBreak";
 
     setTimeout(() => {
+      messageEl.textContent = "";
       startPhase(nextPhase);
     }, AUTO_SWITCH_DELAY);
   } else {
     setTimeout(() => {
+      messageEl.textContent = "";
       startPhase("work");
     }, AUTO_SWITCH_DELAY);
   }
