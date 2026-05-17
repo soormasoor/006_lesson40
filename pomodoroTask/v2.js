@@ -17,6 +17,8 @@ const pauseBtn = document.getElementById("pauseBtn");
 const resumeBtn = document.getElementById("resumeBtn");
 const resetBtn = document.getElementById("resetBtn");
 
+const sound = new Audio("sound.mp3");
+
 let completedSessions = 0;
 
 const timer = {
@@ -114,11 +116,13 @@ function finishPhase() {
 
     setTimeout(() => {
       messageEl.textContent = "";
+      sound.play();
       startPhase(nextPhase);
     }, AUTO_SWITCH_DELAY);
   } else {
     setTimeout(() => {
       messageEl.textContent = "";
+      sound.play();
       startPhase("work");
     }, AUTO_SWITCH_DELAY);
   }
