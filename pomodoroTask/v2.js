@@ -1,11 +1,13 @@
 "use strict";
+
 const DURATIONS = {
-  work: 0.1 * 60 * 1000, // debug durations
+  work: 0.1 * 60 * 1000,
   shortBreak: 0.1 * 60 * 1000,
   longBreak: 0.1 * 60 * 1000,
 };
 
 const AUTO_SWITCH_DELAY = 3000;
+const STORAGE_KEY = "pomodoro-state";
 
 const phaseEl = document.getElementById("phase");
 const timerEl = document.getElementById("timer");
@@ -19,31 +21,54 @@ const resetBtn = document.getElementById("resetBtn");
 
 const sound = new Audio("sound.mp3");
 
-let completedSessions = 0;
-
 const timer = {
   phase: null,
   end: null,
   timeLeft: null,
 
+  isRunning: false,
+  isPaused: false,
+
   intervalId: null,
   flashIntervalId: null,
-
   isFlashing: false,
 };
 
-let isRunning = false;
-let isPaused = false;
+let completedSessions = 0;
+
+const storage = {
+  save() {
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        phase: timer.phase,
+        end: timer.end,
+        timeLeft: timer.timeLeft,
+        isRunning: timer.isRunning,
+        isPaused: timer.isPaused,
+        completedSessions,
+      }),
+    );
+  },
+
+  load() {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY));
+  },
+
+  clear() {
+    localStorage.removeItem(STORAGE_KEY);
+  },
+};
 
 function remainingTime() {
   return timer.end - Date.now();
 }
 
-function formatTime(millis) {
-  const minutes = Math.floor((millis / (1000 * 60)) % 60);
-  const seconds = Math.floor((millis / 1000) % 60);
+function formatTime(ms) {
+  const minutes = Math.floor((ms / 1000 / 60) % 60);
+  const seconds = Math.floor((ms / 1000) % 60);
 
-  const pad = (i) => String(i).padStart(2, "0");
+  const pad = (n) => String(n).padStart(2, "0");
 
   return `${pad(minutes)}:${pad(seconds)}`;
 }
@@ -65,13 +90,14 @@ function updatePhase(phase) {
     case "longBreak":
       phaseEl.textContent = "Long Break";
       break;
+
+    default:
+      phaseEl.textContent = "Press START";
   }
 }
 
 function startFlashing() {
-  if (timer.flashIntervalId) {
-    return;
-  }
+  if (timer.flashIntervalId) return;
 
   timer.flashIntervalId = setInterval(() => {
     timerEl.style.color = timer.isFlashing ? "red" : "white";
@@ -91,15 +117,13 @@ function stopFlashing() {
 
 function clearTimer() {
   clearInterval(timer.intervalId);
-  clearInterval(timer.flashIntervalId);
 
   timer.intervalId = null;
-  timer.flashIntervalId = null;
 
   stopFlashing();
 
-  isRunning = false;
-  isPaused = false;
+  timer.isRunning = false;
+  timer.isPaused = false;
 }
 
 function finishPhase() {
@@ -109,20 +133,28 @@ function finishPhase() {
 
   messageEl.textContent = "Switching phases...";
 
+  storage.save();
+
   if (finishedPhase === "work") {
-    sessionsEl.textContent = `Completed sessions: ${++completedSessions}`;
+    completedSessions++;
+
+    sessionsEl.textContent = `Completed sessions: ${completedSessions}`;
 
     const nextPhase = completedSessions % 4 === 0 ? "longBreak" : "shortBreak";
 
     setTimeout(() => {
       messageEl.textContent = "";
+
       sound.play();
+
       startPhase(nextPhase);
     }, AUTO_SWITCH_DELAY);
   } else {
     setTimeout(() => {
       messageEl.textContent = "";
+
       sound.play();
+
       startPhase("work");
     }, AUTO_SWITCH_DELAY);
   }
@@ -149,47 +181,51 @@ function startPhase(phase) {
     throw new TypeError("Invalid phase");
   }
 
-  if (isRunning) {
-    return;
-  }
+  if (timer.isRunning) return;
 
   clearTimer();
 
   timer.phase = phase;
   timer.end = Date.now() + DURATIONS[phase];
 
-  isRunning = true;
+  timer.isRunning = true;
 
   updatePhase(phase);
   renderTime();
+
+  storage.save();
 
   runTimerLoop();
 }
 
 function pauseTimer() {
-  if (!isRunning || isPaused) {
+  if (!timer.isRunning || timer.isPaused) {
     return;
   }
 
   clearInterval(timer.intervalId);
 
+  timer.intervalId = null;
+
   timer.timeLeft = remainingTime();
 
-  isPaused = true;
-  isRunning = false;
+  timer.isPaused = true;
+  timer.isRunning = false;
+
+  storage.save();
 }
 
 function resumeTimer() {
-  if (!isPaused) {
-    return;
-  }
+  if (!timer.isPaused) return;
 
   timer.end = Date.now() + timer.timeLeft;
 
-  isPaused = false;
-  isRunning = true;
+  timer.isPaused = false;
+  timer.isRunning = true;
 
   renderTime();
+
+  storage.save();
 
   runTimerLoop();
 }
@@ -199,24 +235,74 @@ function resetTimer() {
 
   completedSessions = 0;
 
-  sessionsEl.textContent = "Completed sessions: 0";
-
-  phaseEl.textContent = "Press START";
-  timerEl.textContent = "00:00";
-
   timer.phase = null;
   timer.end = null;
   timer.timeLeft = null;
+
+  sessionsEl.textContent = "Completed sessions: 0";
+
+  updatePhase(null);
+
+  timerEl.textContent = "00:00";
+
+  messageEl.textContent = "";
+
+  storage.clear();
+}
+
+function restoreState() {
+  const saved = storage.load();
+
+  if (!saved) {
+    resetTimer();
+    return;
+  }
+
+  timer.phase = saved.phase;
+  timer.end = saved.end;
+  timer.timeLeft = saved.timeLeft;
+
+  timer.isRunning = saved.isRunning;
+  timer.isPaused = saved.isPaused;
+
+  completedSessions = saved.completedSessions || 0;
+
+  sessionsEl.textContent = `Completed sessions: ${completedSessions}`;
+
+  updatePhase(timer.phase);
+
+  if (timer.isRunning) {
+    const timeLeft = remainingTime();
+
+    if (timeLeft <= 0) {
+      finishPhase();
+      return;
+    }
+
+    renderTime();
+
+    runTimerLoop();
+  }
+
+  if (timer.isPaused) {
+    timerEl.textContent = formatTime(timer.timeLeft);
+  }
+
+  if (!timer.isRunning && !timer.isPaused) {
+    timerEl.textContent = "00:00";
+  }
 }
 
 startBtn.addEventListener("click", () => {
-  if (!isRunning && !isPaused) {
+  if (!timer.isRunning && !timer.isPaused) {
     startPhase("work");
   }
 });
 
 pauseBtn.addEventListener("click", pauseTimer);
+
 resumeBtn.addEventListener("click", resumeTimer);
+
 resetBtn.addEventListener("click", resetTimer);
 
-resetTimer();
+restoreState();
